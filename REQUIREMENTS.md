@@ -37,6 +37,18 @@ export ANDROID_HOME=~/android-sdk
 export PATH="$JAVA_HOME/bin:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$PATH"
 ```
 
+### Actual Installed Paths (Windows 11)
+These are the verified paths on the development machine:
+```
+JAVA_HOME:     C:\Program Files\Eclipse Adoptium\jdk-17.0.18.8-hotspot
+ANDROID_HOME:  C:\Users\gengr\android-sdk
+SDK Platform:  C:\Users\gengr\android-sdk\platforms\android-35
+Build Tools:   C:\Users\gengr\android-sdk\build-tools\35.0.0
+Platform Tools:C:\Users\gengr\android-sdk\platform-tools
+Gallery Clone: C:\Users\gengr\projects\edge-ai-gallery
+Prototypes:    C:\Users\gengr\projects\edge-ai-apps
+```
+
 ## 2. AI Edge Gallery Base Project
 
 ```bash
@@ -139,6 +151,17 @@ npx serve edgecodex/frontend -l 3001
 ```
 
 Both frontends are fully functional in the browser with simulated AI responses.
+
+### Claude Code Preview Config
+A `.claude/launch.json` was configured for instant preview server launching:
+```json
+{
+  "servers": [
+    {"name": "TextPlay",  "command": "npx serve textplay/frontend -l 3000",  "port": 3000},
+    {"name": "EdgeCodex", "command": "npx serve edgecodex/frontend -l 3001", "port": 3001}
+  ]
+}
+```
 
 ## 8. Gradle Configuration Reference
 

@@ -21,6 +21,16 @@
 - LiteRT 推理引擎的生产就绪度
 - AI 编码助手市场竞争格局
 
+### 市场数据采集
+- 全球 AI 编程助手市场规模（2026）：约 **$8.5B（85亿美元）**
+- 专业开发者 AI 编码工具渗透率：**62%**
+- 主要云端竞品：GitHub Copilot、Cursor、Claude Code
+- **纯离线端侧编程助手几乎无直接竞品** — 这是核心差异化空间
+- 文字驱动 AI 游戏赛道：极为新颖，Tiny Garden 仅为技术 Demo 无商业化
+
+### 可行性评估报告
+验证结果被整理为正式的《联网可行性评估报告》（存储于 `.claude/plans/async-gathering-parasol.md`），用户审阅后批准（"非常好，修正后开始构建产品原型"），确认了技术方向和修正建议。
+
 ### 关键发现与修正
 
 | 企划书声明 | 验证结果 | 修正建议 |
@@ -63,6 +73,18 @@ git clone https://github.com/google-ai-edge/gallery.git
 - 但 Tiny Garden 的前端是纯 HTML/JS，可以在浏览器中独立运行
 - Kotlin 层遵循固定模式，可以先写好代码，等环境就绪后编译
 - **结论**：前端优先，Kotlin 同步编写，环境最后搭建
+
+### 预览服务器配置
+创建了 `.claude/launch.json` 用于浏览器快速测试：
+```json
+{
+  "servers": [
+    {"name": "TextPlay",  "command": "npx serve textplay/frontend -l 3000",  "port": 3000},
+    {"name": "EdgeCodex", "command": "npx serve edgecodex/frontend -l 3001", "port": 3001}
+  ]
+}
+```
+这使得前端可以随时通过 `preview_start` 工具启动本地预览。
 
 ---
 
@@ -108,24 +130,27 @@ interactWith(target)          — 交互
 
 通过预览工具进行了完整测试：
 
-1. **UI 结构验证** — snapshot 确认 Header/Canvas/Inventory/Quests/Chat/Input 全部渲染
+1. **UI 结构验证** — `preview_snapshot` 确认 Header/Canvas/Inventory/Quests/Chat/Input 全部渲染
 2. **游戏逻辑测试** — 通过 `preview_eval` 执行命令序列：
    - `look` → 正确描述位置和周围环境 ✓
    - `move north` → 位置从 (5,7) 变为 (5,6)，Turn 递增 ✓
    - `pickup berry` → 距离检查：不相邻时正确拒绝 ✓
-3. **完整任务流测试** — 通过 JS 直接调用：
+3. **完整任务流测试** — 通过 JS 直接调用 `textPlay.runCommands()`：
    - 移动到浆果灌木 → 采集浆果 → 背包显示 🍓 Berry ✓
    - 与 Farmer Lin 对话 → 根据背包状态返回不同对话 ✓
    - 任务 "Gather Berries" 自动标记完成 ✓
-4. **用户输入交互** — 通过 `preview_fill` + `preview_click`：
-   - 输入 "look around" → [You] look around → [System] 环境描述 ✓
-   - 输入 "walk north" → [Action] You walk north ✓
+4. **用户输入交互测试** — 通过 `preview_fill` 填写输入框 + `preview_click` 点击发送：
+   - 输入 "look around" → 消息列表出现 [You] look around → [System] 环境描述 ✓
+   - 输入 "walk north" → [Action] You walk north → 画布中玩家位置更新 ✓
+   - 输入 "talk to farmer" → NPC 对话正确触发 ✓
+   - 验证了完整的用户交互流程：文本输入 → 命令解析 → 游戏状态变更 → UI 更新
 
 ### 遇到的问题
 
-**问题**：`preview_screenshot` 持续超时（30s timeout）
-**原因**：`requestAnimationFrame` 持续渲染循环可能影响截图捕获
-**解决**：改用 `preview_snapshot`（accessibility tree）+ `preview_eval`（JS 执行）验证，效果等价
+**问题**：`preview_screenshot` 持续超时（30s timeout），无法获取可视化截图
+**原因分析**：`requestAnimationFrame` 持续渲染循环可能影响截图捕获的页面稳定性检测
+**解决方案**：改用 `preview_snapshot`（accessibility tree 文本表示）+ `preview_eval`（JS 执行返回值）进行验证，效果等价且更可靠
+**教训**：对于有持续动画循环的页面，文本化验证手段比截图更稳定
 
 ---
 

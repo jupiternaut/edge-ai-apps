@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>EdgeCodex - On-Device Code Assistant</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="app">
+    <header id="header">
+      <div class="header-left">
+        <span class="logo">&lt;EdgeCodex/&gt;</span>
+        <span class="badge">Offline</span>
+      </div>
+      <div class="header-right">
+        <select id="lang-select">
+          <option value="python">Python</option>
+          <option value="javascript">JavaScript</option>
+          <option value="kotlin">Kotlin</option>
+          <option value="java">Java</option>
+          <option value="rust">Rust</option>
+          <option value="go">Go</option>
+          <option value="cpp">C++</option>
+          <option value="typescript">TypeScript</option>
+        </select>
+        <button id="settings-btn" title="Prompt Lab">Settings</button>
+      </div>
+    </header>
+
+    <main id="main">
+      <!-- Code Editor Panel -->
+      <div id="editor-panel">
+        <div class="panel-header">
+          <span class="tab active" data-tab="editor">Editor</span>
+          <span class="tab" data-tab="output">Output</span>
+        </div>
+        <div id="editor-container" class="panel-body active" data-panel="editor">
+          <div id="line-numbers"></div>
+          <textarea id="code-editor" spellcheck="false" placeholder="// Type or paste your code here...
+// Then ask EdgeCodex to help:
+//   'explain this code'
+//   'find the bug'
+//   'add error handling'
+//   'refactor to use async/await'"></textarea>
+        </div>
+        <div id="output-container" class="panel-body" data-panel="output">
+          <pre id="output-content"></pre>
+        </div>
+      </div>
+
+      <!-- AI Assistant Panel -->
+      <div id="assistant-panel">
+        <div class="panel-header">
+          <span>AI Assistant</span>
+          <span id="model-info" class="model-badge">Gemma 4 E2B</span>
+        </div>
+        <div id="chat-messages"></div>
+        <div id="quick-actions">
+          <button class="quick-btn" data-action="explain">Explain</button>
+          <button class="quick-btn" data-action="fix">Fix Bug</button>
+          <button class="quick-btn" data-action="refactor">Refactor</button>
+          <button class="quick-btn" data-action="complete">Complete</button>
+          <button class="quick-btn" data-action="test">Gen Tests</button>
+          <button class="quick-btn" data-action="optimize">Optimize</button>
+        </div>
+        <form id="chat-form">
+          <textarea id="chat-input" rows="2" placeholder="Ask about your code..."></textarea>
+          <button type="submit" id="send-btn">Send</button>
+        </form>
+      </div>
+    </main>
+
+    <!-- Prompt Lab Modal -->
+    <div id="prompt-lab" class="modal hidden">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3>Prompt Lab</h3>
+          <button id="close-lab">&times;</button>
+        </div>
+        <div class="modal-body">
+          <label>Temperature: <span id="temp-val">0.7</span></label>
+          <input type="range" id="temp-slider" min="0" max="2" step="0.1" value="0.7">
+          <label>Top-K: <span id="topk-val">64</span></label>
+          <input type="range" id="topk-slider" min="1" max="128" step="1" value="64">
+          <label>Top-P: <span id="topp-val">0.95</span></label>
+          <input type="range" id="topp-slider" min="0" max="1" step="0.05" value="0.95">
+          <label>Max Tokens: <span id="maxtok-val">2048</span></label>
+          <input type="range" id="maxtok-slider" min="256" max="4096" step="256" value="2048">
+          <label>System Prompt:</label>
+          <textarea id="system-prompt" rows="4">You are EdgeCodex, an expert coding assistant running locally on-device via Gemma 4. Provide concise, accurate code help. Always include code examples when relevant.</textarea>
+        </div>
+      </div>
+    </div>
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>

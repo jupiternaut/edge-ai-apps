@@ -1,0 +1,26 @@
+# Build
+*.apk
+*.aab
+build/
+.gradle/
+local.properties
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Node (for npx serve)
+node_modules/
+
+# Android
+*.keystore
+*.jks
+
+# Credentials
+.env
+credentials.json

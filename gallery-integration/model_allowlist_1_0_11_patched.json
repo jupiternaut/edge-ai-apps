@@ -33,8 +33,7 @@
         "llm_prompt_lab",
         "llm_agent_chat",
         "llm_ask_image",
-        "llm_ask_audio",
-        "llm_edgecodex"
+        "llm_ask_audio"
       ]
     },
     {
@@ -197,7 +196,7 @@
       "defaultConfig": {
         "topK": 64,
         "topP": 0.95,
-        "temperature": 1.0,
+        "temperature": 0.0,
         "maxTokens": 512,
         "accelerators": "cpu"
       },

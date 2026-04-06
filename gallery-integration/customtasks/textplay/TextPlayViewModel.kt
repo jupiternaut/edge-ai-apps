@@ -1,251 +1,139 @@
 package com.google.ai.edge.gallery.customtasks.textplay
 
-import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.ai.edge.gallery.data.Model
-import com.google.ai.edge.gallery.runtime.LlmChatModelHelper
-import com.google.ai.edge.litertlm.Conversation
+import com.google.ai.edge.gallery.ui.llmchat.LlmChatModelHelper
+import com.google.ai.edge.gallery.ui.llmchat.LlmModelInstance
+import com.google.ai.edge.litertlm.Content
 import com.google.ai.edge.litertlm.Contents
-import com.google.ai.edge.litertlm.Engine
-import com.google.ai.edge.litertlm.tools.tool
+import com.google.ai.edge.litertlm.ToolProvider
 import dagger.hilt.android.lifecycle.HiltViewModel
+import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.receiveAsFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
-import javax.inject.Inject
 
-/**
- * ViewModel for TextPlay game.
- *
- * Manages:
- * - LiteRT-LM engine lifecycle (FunctionGemma for actions, Gemma 4 for dialogue)
- * - Game state tracking and conversation resets
- * - Communication bridge between model inference and WebView game
- *
- * Pattern follows TinyGardenViewModel.kt from AI Edge Gallery.
- */
 @HiltViewModel
 class TextPlayViewModel @Inject constructor() : ViewModel() {
+  private val _uiState = MutableStateFlow(TextPlayUiState())
+  val uiState: StateFlow<TextPlayUiState> = _uiState.asStateFlow()
 
-    private val _uiState = MutableStateFlow(TextPlayUiState())
-    val uiState: StateFlow<TextPlayUiState> = _uiState.asStateFlow()
+  private val _isResettingConversation = MutableStateFlow(false)
+  private var turnCount = 0
+  private var lastGameState: TextPlayGameState? = null
 
-    /** Channel for commands to be executed in the WebView */
-    private val _commandChannel = Channel<WebViewCommand>(Channel.BUFFERED)
-    val commandFlow = _commandChannel.receiveAsFlow()
-
-    private var engine: Engine? = null
-    private var conversation: Conversation? = null
-    private var turnCount = 0
-    private var lastGameState: TextPlayGameState? = null
-
-    companion object {
-        /** Reset conversation every N turns to prevent context overflow */
-        private const val RESET_INTERVAL = 15
+  fun processUserInput(model: Model, input: String, tools: List<ToolProvider>) {
+    if (model.instance == null || input.isBlank()) {
+      return
     }
 
-    // ==================== ENGINE LIFECYCLE ====================
+    viewModelScope.launch(Dispatchers.Default) {
+      setProcessing(processing = true)
+      clearError()
 
-    /**
-     * Initialize the LiteRT-LM engine with FunctionGemma model.
-     * Called once when the screen is first composed.
-     */
-    fun initializeEngine(context: Context, model: Model) {
-        viewModelScope.launch(Dispatchers.Default) {
-            _uiState.value = _uiState.value.copy(loading = true)
+      _isResettingConversation.first { !it }
+      val instance = model.instance as? LlmModelInstance
+      if (instance == null) {
+        setProcessing(processing = false)
+        setError("TextPlay model is not initialized.")
+        return@launch
+      }
 
-            val tools = listOf(
-                tool(TextPlayTools(onAction = { action -> handleAction(action) }))
-            )
+      try {
+        val contents = listOf(Content.Text(input.trim()))
+        instance.conversation.sendMessage(Contents.of(contents))
+        turnCount += 1
 
-            LlmChatModelHelper.initialize(
-                context = context,
-                model = model,
-                supportImage = false,
-                supportAudio = true, // Voice commands
-                onDone = { error ->
-                    _uiState.value = _uiState.value.copy(
-                        loading = false,
-                        error = error.ifEmpty { null },
-                    )
-                },
-                systemInstruction = Contents.of(TextPlayTask.buildSystemPrompt()),
-                tools = tools,
-                enableConversationConstrainedDecoding = true,
-            )
-
-            engine = model.instance?.engine
-            conversation = model.instance?.conversation
+        if (turnCount >= RESET_INTERVAL) {
+          resetConversation(model = model, tools = tools)
         }
+      } catch (e: Exception) {
+        setError(e.message ?: "Failed to process the TextPlay command.")
+      } finally {
+        setProcessing(processing = false)
+      }
     }
+  }
 
-    /**
-     * Process user's natural language input through FunctionGemma.
-     */
-    fun processUserInput(input: String) {
-        val conv = conversation ?: return
+  fun updateGameState(rawStateJson: String) {
+    val normalizedJson =
+      runCatching { Json.decodeFromString<String>(rawStateJson) }
+        .getOrElse { rawStateJson.trim().removePrefix("\"").removeSuffix("\"") }
 
-        viewModelScope.launch(Dispatchers.Default) {
-            _uiState.value = _uiState.value.copy(processing = true)
+    runCatching { Json.decodeFromString<TextPlayGameState>(normalizedJson) }
+      .onSuccess { gameState -> lastGameState = gameState }
+  }
 
-            // Add user message to UI
-            addChatMessage(ChatMessage(text = input, type = ChatMessageType.USER))
+  private fun resetConversation(model: Model, tools: List<ToolProvider>) {
+    _isResettingConversation.value = true
+    setResettingEngine(resetting = true)
+    LlmChatModelHelper.resetConversation(
+      model = model,
+      supportImage = false,
+      supportAudio = false,
+      systemInstruction = Contents.of(TextPlayTask().buildSystemPrompt(gameState = lastGameState)),
+      tools = tools,
+      enableConversationConstrainedDecoding = true,
+    )
+    turnCount = 0
+    setResettingEngine(resetting = false)
+    _isResettingConversation.value = false
+  }
 
-            try {
-                // Send to FunctionGemma - it will trigger @Tool methods
-                val response = conv.sendMessage(Contents.of(input))
-                val responseText = response.toString()
+  private fun setProcessing(processing: Boolean) {
+    _uiState.update { currentState -> currentState.copy(processing = processing) }
+  }
 
-                // If model returned text instead of function call, show as dialogue
-                if (responseText.isNotBlank()) {
-                    sendThinkingMessage(responseText)
-                }
-            } catch (e: Exception) {
-                addChatMessage(ChatMessage(
-                    text = "Oops, something went wrong: ${e.message}",
-                    type = ChatMessageType.ERROR,
-                ))
-            }
+  private fun setResettingEngine(resetting: Boolean) {
+    _uiState.update { currentState -> currentState.copy(resettingEngine = resetting) }
+  }
 
-            turnCount++
-            checkConversationReset()
-            _uiState.value = _uiState.value.copy(processing = false)
-        }
-    }
+  private fun setError(error: String?) {
+    _uiState.update { currentState -> currentState.copy(error = error) }
+  }
 
-    // ==================== ACTION HANDLING ====================
+  private fun clearError() {
+    setError(error = null)
+  }
 
-    /**
-     * Converts a TextPlayAction into a WebView command JSON string.
-     * Called by TextPlayTools when FunctionGemma triggers a function.
-     */
-    private fun handleAction(action: TextPlayAction) {
-        val command = when (action) {
-            is TextPlayAction.Move -> WebViewCommand(
-                action = "move",
-                direction = action.direction,
-                steps = action.steps,
-            )
-            is TextPlayAction.Look -> WebViewCommand(action = "look")
-            is TextPlayAction.Pickup -> WebViewCommand(action = "pickup", item = action.item)
-            is TextPlayAction.UseItem -> WebViewCommand(
-                action = "use",
-                item = action.item,
-                target = action.target,
-            )
-            is TextPlayAction.Talk -> WebViewCommand(action = "talk", npc = action.npc)
-            is TextPlayAction.Craft -> WebViewCommand(
-                action = "craft",
-                item1 = action.item1,
-                item2 = action.item2,
-            )
-            is TextPlayAction.CheckInventory -> WebViewCommand(action = "inventory")
-            is TextPlayAction.Interact -> WebViewCommand(action = "interact", target = action.target)
-        }
-
-        viewModelScope.launch {
-            _commandChannel.send(command)
-        }
-    }
-
-    /**
-     * Show Gemma 4 "thinking mode" dialogue when the model can't map to a function.
-     */
-    private fun sendThinkingMessage(text: String) {
-        viewModelScope.launch {
-            _commandChannel.send(
-                WebViewCommand(action = "message", text = text, type = "think")
-            )
-        }
-    }
-
-    // ==================== CONVERSATION MANAGEMENT ====================
-
-    /**
-     * Periodically reset the conversation to prevent context overflow.
-     * Injects current game state into the fresh system prompt.
-     */
-    private fun checkConversationReset() {
-        if (turnCount % RESET_INTERVAL != 0) return
-
-        viewModelScope.launch(Dispatchers.Default) {
-            _uiState.value = _uiState.value.copy(resettingEngine = true)
-
-            val gameState = lastGameState
-            conversation?.close()
-            conversation = engine?.createConversation(
-                com.google.ai.edge.litertlm.ConversationConfig(
-                    systemInstruction = Contents.of(TextPlayTask.buildSystemPrompt(gameState)),
-                    tools = listOf(
-                        tool(TextPlayTools(onAction = { action -> handleAction(action) }))
-                    ),
-                )
-            )
-
-            _uiState.value = _uiState.value.copy(resettingEngine = false)
-        }
-    }
-
-    /**
-     * Called from WebView via JavaScript interface to sync game state.
-     */
-    fun updateGameState(stateJson: String) {
-        try {
-            lastGameState = Json.decodeFromString<TextPlayGameState>(stateJson)
-        } catch (_: Exception) { }
-    }
-
-    // ==================== UI STATE ====================
-
-    private fun addChatMessage(message: ChatMessage) {
-        _uiState.value = _uiState.value.copy(
-            messages = _uiState.value.messages + message,
-        )
-    }
-
-    override fun onCleared() {
-        conversation?.close()
-        engine?.close()
-        super.onCleared()
-    }
+  companion object {
+    private const val RESET_INTERVAL = 15
+  }
 }
 
-// ==================== DATA CLASSES ====================
-
 data class TextPlayUiState(
-    val loading: Boolean = false,
-    val processing: Boolean = false,
-    val resettingEngine: Boolean = false,
-    val error: String? = null,
-    val messages: List<ChatMessage> = emptyList(),
+  val processing: Boolean = false,
+  val resettingEngine: Boolean = false,
+  val error: String? = null,
 )
-
-data class ChatMessage(
-    val text: String,
-    val type: ChatMessageType,
-    val timestamp: Long = System.currentTimeMillis(),
-)
-
-enum class ChatMessageType { USER, SYSTEM, ACTION, NPC, ERROR, THINK }
 
 @Serializable
 data class WebViewCommand(
-    val action: String,
-    val direction: String? = null,
-    val steps: Int? = null,
-    val item: String? = null,
-    val target: String? = null,
-    val npc: String? = null,
-    val item1: String? = null,
-    val item2: String? = null,
-    val text: String? = null,
-    val type: String? = null,
+  val action: String,
+  val direction: String? = null,
+  val steps: Int? = null,
+  val item: String? = null,
+  val target: String? = null,
+  val npc: String? = null,
+  val item1: String? = null,
+  val item2: String? = null,
+  val text: String? = null,
+  val type: String? = null,
+)
+
+@Serializable
+data class TextPlayGameState(
+  val playerX: Int,
+  val playerY: Int,
+  val playerHp: Int,
+  val inventory: List<String>,
+  val completedQuests: List<String>,
+  val lastAction: String? = null,
 )

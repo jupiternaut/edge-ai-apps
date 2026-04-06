@@ -95,3 +95,16 @@ sealed class TextPlayAction {
     data object CheckInventory : TextPlayAction()
     data class Interact(val target: String) : TextPlayAction()
 }
+
+fun TextPlayAction.toWebViewCommand(): WebViewCommand {
+    return when (this) {
+        is TextPlayAction.Move -> WebViewCommand(action = "move", direction = direction, steps = steps)
+        TextPlayAction.Look -> WebViewCommand(action = "look")
+        is TextPlayAction.Pickup -> WebViewCommand(action = "pickup", item = item)
+        is TextPlayAction.UseItem -> WebViewCommand(action = "use", item = item, target = target)
+        is TextPlayAction.Talk -> WebViewCommand(action = "talk", npc = npc)
+        is TextPlayAction.Craft -> WebViewCommand(action = "craft", item1 = item1, item2 = item2)
+        TextPlayAction.CheckInventory -> WebViewCommand(action = "inventory")
+        is TextPlayAction.Interact -> WebViewCommand(action = "interact", target = target)
+    }
+}

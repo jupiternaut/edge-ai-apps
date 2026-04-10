@@ -28,7 +28,7 @@ fun SessionScreen(
     verticalArrangement = Arrangement.spacedBy(12.dp),
   ) {
     Text("Session", style = MaterialTheme.typography.headlineSmall)
-    Text("Phase 1 streaming stub through MobileAgentBackend.")
+    Text("Phase 2 session orchestration with turn state and cancellation.")
 
     OutlinedTextField(
       value = uiState.draftMessage,
@@ -42,10 +42,17 @@ fun SessionScreen(
       Button(onClick = viewModel::sendMessage) {
         Text("Send")
       }
+      Button(onClick = viewModel::cancelTurn) {
+        Text("Cancel")
+      }
     }
 
+    Text("Turn state: ${uiState.streamingState.turnState.name}", style = MaterialTheme.typography.bodyMedium)
     uiState.lastUserMessage?.let {
       Text("Last user message: $it", style = MaterialTheme.typography.bodyMedium)
+    }
+    if (uiState.messages.isNotEmpty()) {
+      Text("Stored messages: ${uiState.messages.size}", style = MaterialTheme.typography.bodyMedium)
     }
     uiState.streamingState.status?.let {
       Text("Status: $it", style = MaterialTheme.typography.bodyMedium)

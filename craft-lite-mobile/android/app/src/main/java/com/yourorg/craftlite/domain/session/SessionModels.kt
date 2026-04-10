@@ -21,3 +21,14 @@ data class ChatMessage(
   val content: String,
   val createdAtMillis: Long,
 )
+
+enum class TurnState {
+  IDLE,
+  PREPARING,
+  STREAMING,
+  RUNNING_TOOL,
+  AWAITING_PERMISSION,
+  COMPLETE,
+  FAILED,
+  CANCELLED,
+}

@@ -43,14 +43,35 @@ If any feature pressures the design toward a desktop-like runtime, stop and reco
 
 These are intentional scaffolding shortcuts, not final architecture.
 
+## Phase 2 Progress Snapshot
+
+The branch now includes an actual turn orchestration skeleton beyond the initial scaffold.
+
+Implemented so far:
+
+- explicit `TurnState`
+- cancellation path in `SessionViewModel`
+- prompt context assembly
+- system prompt layering with workspace, permission mode, recent messages, and skills
+- model warmup hook from home screen
+- assistant message persistence on completed turns
+
+Still placeholder:
+
+- actual LiteRT-LM integration
+- real tool-call parsing
+- persistent repositories
+- real workspace filesystem access
+- permission approval UI
+
 ## Next Implementation Order
 
-1. real local model adapter
-2. real workspace repository
-3. path validation
-4. read-only tools
-5. turn-state stabilization
-6. write permissions and patch preview
+1. real workspace repository
+2. path validation
+3. read-only tools
+4. real local model adapter
+5. write permissions and patch preview
+6. persistence migration from in-memory to Room
 
 ## Things To Avoid Early
 
@@ -59,6 +80,8 @@ These are intentional scaffolding shortcuts, not final architecture.
 - direct file I/O from ViewModels
 - UI-owned permission enforcement
 - prompt bloat from full-file injection
+- hiding turn-state transitions inside opaque helper functions
+- treating cancellation as a generic failure
 
 ## Decision Notes
 
@@ -66,6 +89,15 @@ These are intentional scaffolding shortcuts, not final architecture.
   because this project is a standalone mobile application, not just a Gallery task sample.
 - Current package name uses `com.yourorg.craftlite` as a placeholder and must be replaced before distribution.
 - The fake LLM stream is useful only for UI integration and should be removed once real inference is connected.
+- `PromptContextAssembler` is the current boundary for prompt inputs. New prompt sources should be added there first unless there is a strong reason not to.
+- `ConversationCoordinator` is now the main turn pipeline and should remain the single place where model output is converted into agent events.
+
+## Immediate Follow-Up
+
+- replace in-memory workspace listing with real sandbox-aware access
+- add path validator utilities before file read/write expansion
+- keep model integration behind `LlmEngine`
+- defer Room migration until read-only workspace flow is stable
 
 ## Rename Before Shipping
 

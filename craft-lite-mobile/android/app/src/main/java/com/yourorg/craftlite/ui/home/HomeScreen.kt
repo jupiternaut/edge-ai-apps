@@ -30,6 +30,7 @@ fun HomeScreen(
       "Phase 1 scaffold wired to in-memory repositories.",
       style = MaterialTheme.typography.bodyMedium,
     )
+    Text("Model: ${uiState.modelStatus}", style = MaterialTheme.typography.bodyMedium)
 
     if (uiState.isLoading) {
       CircularProgressIndicator()

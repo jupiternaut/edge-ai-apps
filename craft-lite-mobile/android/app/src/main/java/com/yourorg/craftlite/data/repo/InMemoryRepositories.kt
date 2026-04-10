@@ -14,6 +14,17 @@ class InMemorySessionRepository @Inject constructor() : SessionRepository {
   private val sessions = mutableListOf<SessionSummary>()
   private val messages = mutableListOf<ChatMessage>()
 
+  init {
+    sessions.add(
+      SessionSummary(
+        id = "phase2-session",
+        workspaceId = "sample-workspace",
+        title = "Phase 2 Session",
+        updatedAtMillis = System.currentTimeMillis(),
+      )
+    )
+  }
+
   override suspend fun listSessions(): List<SessionSummary> = sessions.toList()
 
   override suspend fun createSession(workspaceId: String, title: String): SessionSummary {

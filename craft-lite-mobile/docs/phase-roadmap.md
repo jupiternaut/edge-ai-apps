@@ -21,6 +21,20 @@ Completed outcomes:
 
 Replace the current placeholder LLM stream with a real local inference adapter and establish a stable turn lifecycle.
 
+### Status
+
+In progress.
+
+Already completed in this branch:
+
+- explicit `TurnState` model introduced
+- session cancellation hook introduced
+- prompt context assembly introduced
+- prompt now includes workspace, recent messages, skills, and permission mode
+- local model warmup entry point introduced
+- session screen now reflects turn state and supports cancellation
+- assistant response persistence path introduced for completed turns
+
 ### Work Items
 
 - Replace `GemmaLiteRtEngine` placeholder output with a real LiteRT-LM-backed implementation.

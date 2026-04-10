@@ -1,8 +1,11 @@
 package com.google.ai.edge.gallery.customtasks.textplay
 
+import android.util.Log
 import com.google.ai.edge.litertlm.Tool
 import com.google.ai.edge.litertlm.ToolParam
 import com.google.ai.edge.litertlm.ToolSet
+
+private const val TAG = "TextPlayTools"
 
 /**
  * FunctionGemma tool definitions for TextPlay.
@@ -22,12 +25,14 @@ class TextPlayTools(
         @ToolParam(description = "Direction to move: north, south, east, or west") direction: String,
         @ToolParam(description = "Number of steps to move (default 1, max 5)") steps: Int = 1,
     ): Map<String, Any> {
+        Log.d(TAG, "movePlayer called: direction=$direction, steps=$steps")
         onAction(TextPlayAction.Move(direction, steps.coerceIn(1, 5)))
         return mapOf("result" to "success")
     }
 
     @Tool(description = "Look around and describe the player's current surroundings, nearby objects, and NPCs.")
     fun lookAround(): Map<String, Any> {
+        Log.d(TAG, "lookAround called")
         onAction(TextPlayAction.Look)
         return mapOf("result" to "success")
     }
@@ -36,6 +41,7 @@ class TextPlayTools(
     fun pickupItem(
         @ToolParam(description = "Name of the item to pick up, e.g. 'berry', 'herb', 'chest', 'torch'") item: String,
     ): Map<String, Any> {
+        Log.d(TAG, "pickupItem called: item=$item")
         onAction(TextPlayAction.Pickup(item))
         return mapOf("result" to "success")
     }
@@ -45,6 +51,7 @@ class TextPlayTools(
         @ToolParam(description = "Name of the item from inventory to use") item: String,
         @ToolParam(description = "Name of the target to use the item on, e.g. 'gate', 'campfire'") target: String,
     ): Map<String, Any> {
+        Log.d(TAG, "useItem called: item=$item, target=$target")
         onAction(TextPlayAction.UseItem(item, target))
         return mapOf("result" to "success")
     }
@@ -53,6 +60,7 @@ class TextPlayTools(
     fun talkToNPC(
         @ToolParam(description = "Name of the NPC to talk to, e.g. 'farmer', 'elder', 'merchant'") npc: String,
     ): Map<String, Any> {
+        Log.d(TAG, "talkToNPC called: npc=$npc")
         onAction(TextPlayAction.Talk(npc))
         return mapOf("result" to "success")
     }
@@ -62,12 +70,14 @@ class TextPlayTools(
         @ToolParam(description = "First item or ingredient") item1: String,
         @ToolParam(description = "Second item, ingredient, or crafting station") item2: String,
     ): Map<String, Any> {
+        Log.d(TAG, "craftItems called: item1=$item1, item2=$item2")
         onAction(TextPlayAction.Craft(item1, item2))
         return mapOf("result" to "success")
     }
 
     @Tool(description = "Check the player's current inventory.")
     fun checkInventory(): Map<String, Any> {
+        Log.d(TAG, "checkInventory called")
         onAction(TextPlayAction.CheckInventory)
         return mapOf("result" to "success")
     }
@@ -76,6 +86,7 @@ class TextPlayTools(
     fun interactWith(
         @ToolParam(description = "Name of the object to interact with") target: String,
     ): Map<String, Any> {
+        Log.d(TAG, "interactWith called: target=$target")
         onAction(TextPlayAction.Interact(target))
         return mapOf("result" to "success")
     }
@@ -94,4 +105,17 @@ sealed class TextPlayAction {
     data class Craft(val item1: String, val item2: String) : TextPlayAction()
     data object CheckInventory : TextPlayAction()
     data class Interact(val target: String) : TextPlayAction()
+}
+
+fun TextPlayAction.toWebViewCommand(): WebViewCommand {
+    return when (this) {
+        is TextPlayAction.Move -> WebViewCommand(action = "move", direction = direction, steps = steps)
+        TextPlayAction.Look -> WebViewCommand(action = "look")
+        is TextPlayAction.Pickup -> WebViewCommand(action = "pickup", item = item)
+        is TextPlayAction.UseItem -> WebViewCommand(action = "use", item = item, target = target)
+        is TextPlayAction.Talk -> WebViewCommand(action = "talk", npc = npc)
+        is TextPlayAction.Craft -> WebViewCommand(action = "craft", item1 = item1, item2 = item2)
+        TextPlayAction.CheckInventory -> WebViewCommand(action = "inventory")
+        is TextPlayAction.Interact -> WebViewCommand(action = "interact", target = target)
+    }
 }

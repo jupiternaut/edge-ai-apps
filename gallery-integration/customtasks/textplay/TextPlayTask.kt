@@ -53,6 +53,8 @@ class TextPlayTask @Inject constructor() : CustomTask {
       sourceCodeUrl =
         "https://github.com/jupiternaut/edge-ai-apps/tree/master/gallery-integration/customtasks/textplay",
       experimental = true,
+      // Initial prompt is built without game state; real state is injected via
+      // TextPlayViewModel.resetConversation() once the game is running.
       defaultSystemPrompt = buildSystemPrompt(),
     )
 

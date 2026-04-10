@@ -1,5 +1,6 @@
 package com.google.ai.edge.gallery.customtasks.edgecodex
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.ai.edge.gallery.data.Model
@@ -17,6 +18,8 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
+
+private const val TAG = "EdgeCodexViewModel"
 
 @HiltViewModel
 class EdgeCodexViewModel @Inject constructor() : ViewModel() {
@@ -51,6 +54,7 @@ class EdgeCodexViewModel @Inject constructor() : ViewModel() {
 
   fun analyzeCode(model: Model, userMessage: String, code: String) {
     if (model.instance == null || userMessage.isBlank()) {
+      Log.w(TAG, "analyzeCode skipped: instance=${model.instance != null}, blank=${userMessage.isBlank()}")
       return
     }
 
@@ -62,6 +66,7 @@ class EdgeCodexViewModel @Inject constructor() : ViewModel() {
       _isResettingConversation.first { !it }
       val instance = model.instance as? LlmModelInstance
       if (instance == null) {
+        Log.e(TAG, "model.instance is not a LlmModelInstance")
         setProcessing(processing = false)
         setError("EdgeCodex model is not initialized.")
         return@launch
@@ -74,6 +79,7 @@ class EdgeCodexViewModel @Inject constructor() : ViewModel() {
           userMessage
         }
 
+      Log.d(TAG, "analyzeCode turn=$turnCount lang=$currentLanguage msgLen=${userMessage.length} codeLen=${code.length}")
       val responseBuilder = StringBuilder()
       try {
         instance.conversation
@@ -87,6 +93,7 @@ class EdgeCodexViewModel @Inject constructor() : ViewModel() {
 
         val finalResponse =
           responseBuilder.toString().ifBlank { "EdgeCodex did not return a response." }
+        Log.d(TAG, "analyzeCode completed, responseLen=${finalResponse.length}")
         _uiState.update { currentState ->
           currentState.copy(
             streamingResponse = null,
@@ -96,9 +103,11 @@ class EdgeCodexViewModel @Inject constructor() : ViewModel() {
 
         turnCount += 1
         if (turnCount >= RESET_INTERVAL) {
+          Log.i(TAG, "reached RESET_INTERVAL=$RESET_INTERVAL, resetting conversation")
           resetConversation(model = model, code = code)
         }
       } catch (e: Exception) {
+        Log.e(TAG, "analyzeCode stream failed", e)
         setError("Analysis failed: ${e.message ?: "Unknown error"}")
       } finally {
         setProcessing(processing = false)
@@ -125,6 +134,7 @@ class EdgeCodexViewModel @Inject constructor() : ViewModel() {
     )
     turnCount = 0
     _isResettingConversation.value = false
+    Log.d(TAG, "conversation reset complete, turnCount=0")
   }
 
   private fun setProcessing(processing: Boolean) {

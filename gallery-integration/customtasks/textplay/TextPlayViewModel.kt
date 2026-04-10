@@ -1,5 +1,6 @@
 package com.google.ai.edge.gallery.customtasks.textplay
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.ai.edge.gallery.data.Model
@@ -20,6 +21,8 @@ import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 
+private const val TAG = "TextPlayViewModel"
+
 @HiltViewModel
 class TextPlayViewModel @Inject constructor() : ViewModel() {
   private val _uiState = MutableStateFlow(TextPlayUiState())
@@ -31,6 +34,7 @@ class TextPlayViewModel @Inject constructor() : ViewModel() {
 
   fun processUserInput(model: Model, input: String, tools: List<ToolProvider>) {
     if (model.instance == null || input.isBlank()) {
+      Log.w(TAG, "processUserInput skipped: instance=${model.instance != null}, blank=${input.isBlank()}")
       return
     }
 
@@ -41,20 +45,24 @@ class TextPlayViewModel @Inject constructor() : ViewModel() {
       _isResettingConversation.first { !it }
       val instance = model.instance as? LlmModelInstance
       if (instance == null) {
+        Log.e(TAG, "model.instance is not a LlmModelInstance")
         setProcessing(processing = false)
         setError("TextPlay model is not initialized.")
         return@launch
       }
 
       try {
+        Log.d(TAG, "sendMessage turn=$turnCount input=\"${input.trim().take(80)}\"")
         val contents = listOf(Content.Text(input.trim()))
         instance.conversation.sendMessage(Contents.of(contents))
         turnCount += 1
 
         if (turnCount >= RESET_INTERVAL) {
+          Log.i(TAG, "reached RESET_INTERVAL=$RESET_INTERVAL, resetting conversation")
           resetConversation(model = model, tools = tools)
         }
       } catch (e: Exception) {
+        Log.e(TAG, "processUserInput failed", e)
         setError(e.message ?: "Failed to process the TextPlay command.")
       } finally {
         setProcessing(processing = false)
@@ -68,7 +76,11 @@ class TextPlayViewModel @Inject constructor() : ViewModel() {
         .getOrElse { rawStateJson.trim().removePrefix("\"").removeSuffix("\"") }
 
     runCatching { Json.decodeFromString<TextPlayGameState>(normalizedJson) }
-      .onSuccess { gameState -> lastGameState = gameState }
+      .onSuccess { gameState ->
+        lastGameState = gameState
+        Log.d(TAG, "gameState updated: pos=(${gameState.playerX},${gameState.playerY}) hp=${gameState.playerHp}")
+      }
+      .onFailure { Log.w(TAG, "updateGameState failed to parse JSON: ${it.message}") }
   }
 
   private fun resetConversation(model: Model, tools: List<ToolProvider>) {
@@ -85,6 +97,7 @@ class TextPlayViewModel @Inject constructor() : ViewModel() {
     turnCount = 0
     setResettingEngine(resetting = false)
     _isResettingConversation.value = false
+    Log.d(TAG, "conversation reset complete, turnCount=0")
   }
 
   private fun setProcessing(processing: Boolean) {

@@ -174,3 +174,19 @@ A `.claude/launch.json` was configured for instant preview server launching:
 | Min SDK | 31 (Android 12) |
 | Target SDK | 35 (Android 15) |
 | Compile SDK | 35 |
+
+## 9. Pre-Release Checklist
+
+Before tagging a release, verify:
+
+- [ ] `model_allowlist_1_0_11_patched.json` — all entries with `"commitHash": "main"` must be replaced with specific commit SHAs from HuggingFace (currently `TextPlay-270M` uses `"main"`, see line 243). Pinning to a SHA ensures reproducible downloads.
+- [ ] `ProjectConfig.kt` — HuggingFace OAuth `clientId` / `redirectUri` populated
+- [ ] `app/build.gradle.kts` — `manifestPlaceholders["appAuthRedirectScheme"]` configured
+- [ ] `./gradlew assembleRelease` runs clean (not just `assembleDebug`)
+- [ ] APK signed with release keystore
+- [ ] Smoke test on a physical device: TextPlay + EdgeCodex both launch, models download, basic inference works
+- [ ] `gallery-integration/PATTERNS.md` — cross-check all file:line references are still valid after any refactors
+
+## 10. Patterns & Conventions
+
+When adding a new CustomTask to Gallery, follow `gallery-integration/PATTERNS.md` — it documents 10 paradigms extracted from TextPlay + EdgeCodex + TinyGarden implementations, each with file:line references and a new-task checklist.

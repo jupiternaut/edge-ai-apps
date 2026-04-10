@@ -319,3 +319,89 @@ edge-ai-apps/
 ---
 
 *文档由 Claude Opus 4.6 生成，记录于 2026-04-07*
+
+---
+
+## 第八阶段：Codex 接手 · 编译验证 · 代码评审 · 范式沉淀（2026-04-10）
+
+### Codex 的工作（commits ca2de92 + b238e3c）
+交接后 3 天，Codex 在 `codex/gallery-integration-fix` 分支完成了剩余的 Gallery API 适配工作：
+
+| Commit | 内容 | 规模 |
+|--------|------|------|
+| `ca2de92` | Adapt gallery integration to current Gallery APIs | 10 文件，880+ / 802- |
+| `b238e3c` | Fix TextPlay allowlist metadata | 1 文件，501 行改动 |
+
+主要改动：
+- 修正了所有 `LlmChatModelHelper` / `Model` / `Engine` / `Conversation` 的 import 与调用签名
+- 补全了 `EdgeCodexTaskModule.kt`（Hilt DI）
+- 重写了两个 ViewModel 的生命周期管理代码
+- 规范化了模型白名单的 JSON schema
+
+### 构建验证 ✓
+Codex 在 `C:\Users\gengr\projects\edge-ai-gallery\Android\src\` 成功执行了 `./gradlew assembleDebug`，产出可运行的 APK：
+- **路径**：`app\build\outputs\apk\debug\app-debug.apk`
+- **大小**：131 MB
+- **生成时间**：2026-04-07 05:11:01 UTC+8
+
+通过 Hilt `@IntoSet` 多绑定机制，Gallery 自动发现了 TextPlay 和 EdgeCodex 两个 CustomTask，**无需修改 NavGraph 或路由配置**。
+
+### 代码评审结论（综合评分 8.7/10）
+启动两个并行 Explore Agent 做深度审查：
+1. **Agent 1** 审查 10 个 Kotlin 文件的 API 适配正确性、架构保真度、代码质量、范式可提炼性
+2. **Agent 2** 验证构建产物、文件就位状态、Hilt 注册、模型白名单部署
+
+审查维度评分：
+
+| 维度 | 评分 | 证据 |
+|------|------|------|
+| API 适配正确性 | 9/10 | 所有 import 与 Gallery 源码对齐，`Map<String, Any>` 返回类型正确 |
+| 架构模式保真度 | 9/10 | 严格复刻 TinyGarden 三层结构 |
+| Hilt 注册 | 10/10 | `@IntoSet` 写法完全正确，自动发现机制 |
+| 白名单一致性 | 9/10 | `llm_textplay`/`llm_edgecodex` 两侧严格对应 |
+| 构建可验证性 | ✓ | APK 已产出 |
+
+### 发现的小问题与修补
+
+审查发现 4 处可改进点，在合并前一并修复（commit `388de13`）：
+
+1. **日志缺失** — 所有 `@Tool` 方法和两个 ViewModel 都缺 `Log.d`，对比参考实现 TinyGardenTools 有完整日志。
+   - 修复：在 TextPlayTools / TextPlayViewModel / EdgeCodexViewModel 全面补充 `Log.d/i/w/e`
+2. **流异常处理** — 评审初判 EdgeCodex 流式推理缺 `.catch{}`。**细看后发现 `try-catch` 已完整包裹 `.collect{}`**，这是 Agent 的假阳性。最终决策：在现有 `catch` 块里加 `Log.e(TAG, "...", e)` 而非添加冗余的 `.catch{}` 操作符。
+3. **`commitHash: "main"`** — 模型白名单用了分支名而非具体 SHA。决策：开发阶段可接受，**发版前必须固定**，写入 REQUIREMENTS.md Codex 交接清单。
+4. **注释缺失** — `TextPlayTask.kt:56` 的 `buildSystemPrompt()` 无参调用会让读者疑惑。修复：加注释说明"真实状态在 resetConversation 时注入"。
+
+### 提炼的十条范式（PATTERNS.md）
+评审的核心产出：将 Codex 实现中的好设计沉淀为可复用的开发范式，写入 `gallery-integration/PATTERNS.md`。这 10 条范式覆盖了从 `@Tool` 函数契约到动态 system prompt 注入的完整链路：
+
+1. **@Tool 函数契约** — 返回类型 `Map<String, Any>`，必须含 `"result"` 字段
+2. **Sealed Class 事件流** — 工具输出层级 + 穷尽匹配，编译期发现遗漏
+3. **N 轮对话重置** — `turnCount` + `_isResettingConversation` StateFlow 防并发
+4. **WebView 双向桥接** — Kotlin→JS 的字符串转义规则 + JS→Kotlin 的 `@JavascriptInterface`
+5. **Hilt CustomTask 注册** — `@IntoSet` 多绑定，不需要改 NavGraph
+6. **模型白名单 JSON 扩展** — 字段清单 + `taskTypes` 一致性要求
+7. **@HiltViewModel + StateFlow** — 单一 UiState + finally 重置 loading
+8. **Compose Effect 组合** — `LaunchedEffect` 依赖精确 + `DisposableEffect` 清理
+9. **LlmChatModelHelper 生命周期** — initialize/reset/cleanUp 三件套标准流程
+10. **动态 system prompt 注入** — 可空参数 + 条件拼接
+
+每条范式都附有具体的 `文件:行号` 引用和对比的 TinyGarden 源码，作为团队新建 CustomTask 时的 checklist。
+
+### 决策回顾
+
+| 决策点 | 选择 | 理由 |
+|--------|------|------|
+| 是否启动 Plan 模式做评审 | 是 | 评审 + 范式沉淀是"设计任务"，Plan 模式强制结构化思考 |
+| 并行启动几个 Explore Agent | 2 个 | 代码审查和构建验证是独立关注点，并行最高效 |
+| 是否添加 `.catch{}` 操作符 | 否 | 现有 try-catch 已覆盖，避免引入冗余和潜在的语义混淆 |
+| PATTERNS.md 放在哪里 | `gallery-integration/` 子目录下 | 与被引用的文件同级，便于相对路径引用 |
+| 合并策略 | `--no-ff` merge commit | 保留分支历史，便于追溯 Codex 的贡献 |
+
+### 端到端工作流最终状态
+- **Phase 1-7**（Claude）：前端原型 + Kotlin 草稿 + 初次集成 + 首次 KAPT 失败 + 初次推送 GitHub
+- **Phase 8a**（Codex）：Gallery API 适配 + 编译通过 + APK 产出
+- **Phase 8b**（Claude）：代码评审 + 小修补 + PATTERNS.md 沉淀 + 合并推送
+
+---
+
+*第八阶段更新者：Claude Opus 4.6，更新于 2026-04-10*
